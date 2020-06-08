@@ -2,8 +2,8 @@
 
 # dataを保存するDirectoryを作成
 
-$ mkdir /Volumes/xxxx/expression/seq 
-$ cd /Volumes/xxxx/expression/seq 
+$ mkdir /Volumes/Biomasa/rat_cor/seq 
+$ cd /Volumes/Biomasa/rat_cor/seq 
 
 # NBCI の画面が刷新されていて、 Runinfo Tableは存在しない。　　
 # Metadata という名前に変わっている。　ダウンロード　ダウンロードファイルに落ちるので、こぴぺ
