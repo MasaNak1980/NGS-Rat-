@@ -18,11 +18,7 @@ cat SRR_Acc_List.txt | while read line; do cmd="fasterq-dump --split-files ${lin
 ls -lh *fastq.gz
 ls -lh *fastq.gz | wc -l
 
-#　本来なら、14個あるはずなので、12個しかなかたたため、ダウンロードされていなかったものを、個別にダンロード　
-
-fasterq-dump --split-files SRR******* 
-
-# これで全て揃う
+#　24 個あることを確認　
 
 # Fastqcで確認　#　fastqc --nogroup -o ./　データを入れるフォルダ名　解析するファイル名　
 fastqc --nogroup -o ./fastqc SRR1550989_1.fastq.gz
