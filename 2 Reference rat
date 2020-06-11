@@ -38,7 +38,7 @@ gunzip Rattus_norvegicus.Rnor_6.0.95.gtf.gz
 
 # 遺伝子IDと遺伝子名の対応表の作成
 # データを保存するディレクトリへ移動
-cd ~/Documents/expression/ref
+cd ~/Documents/rat_cat/ref
 
 #Rを起動
 R
