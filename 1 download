@@ -57,5 +57,6 @@ fastqc --nogroup -o ./fastqc *.fastq
  ペアリードなら両方のデータを指定し、--pairedのオプションをつけて実行する。
  $ trim_galore -q 20 --paired *_1.fastq.gz *_2.fastq.gz -o trim
  trim_galoreでトリミング 出力は入力ファイル名_val_1.fq、入力ファイル名_val_2.fqとなる。
+ >>> 今回はworkしなかった
 
 mkdir 
