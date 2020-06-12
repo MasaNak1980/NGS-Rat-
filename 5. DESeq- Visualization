@@ -1,7 +1,10 @@
 この処理もSTAR、RSEMの結果が保存されているディレクトリで実施する
+DESeqの前にRSEMを忘れない。
+
 以下R studio を使用　
 
 setwd("/Volumes/Biomasa/rat_cor/STAR")
+# SraRunTable.txt　でGroupがない場合はしっかり編集する　
 
 df <- read.csv("../seq/SraRunTable.txt",stringsAsFactors=F)
 df2 <- data.frame(sample=df$Run, group=df$group, path=paste0(df$Run, ".genes.results"))
