@@ -1,0 +1,205 @@
+この処理もSTAR、RSEMの結果が保存されているディレクトリで実施する
+以下R studio を使用　
+
+setwd("/Volumes/Biomasa/rat_cor/STAR")
+
+df <- read.csv("../seq/SraRunTable.txt",stringsAsFactors=F)
+df2 <- data.frame(sample=df$Run, group=df$group, path=paste0(df$Run, ".genes.results"))
+write.table(df2, "sample2condition.txt" ,row.names=F, quote=F, sep="\t")
+
+library(DESeq2)
+library(tximport)
+library(dplyr) 
+library(ggplot2) 
+
+#サンプル情報を記載したリストを読み込む
+s2c <- read.table("sample2condition.txt", header=T, sep="\t", stringsAsFactors=F)
+s2c$group <- gsub(" ", "_", s2c$group) # スペースが含まれていることがあるので置換する
+
+#RSEMの出力ファイルの読み込み
+files <- s2c$path
+type(files)
+names(files) <- s2c$sample
+print(files)
+
+#gene-levelの解析では以下コマンド
+file.exists(files)
+all(file.exists(files))
+
+txi <- tximport(files, type="rsem", txIn=F, txOut=F)
+
+#length=0を1に置換 0で割ることがないように
+txi$length[txi$length==0] <- 1
+
+#サンプル情報を読み込む
+s2c$group<-as.factor(s2c$group) #group　文字列から因子型へ変更
+sampleTable <- data.frame(condition=s2c$group)
+rownames(sampleTable) <- colnames(txi$counts)
+dds <- DESeqDataSetFromTximport(txi, sampleTable, ~condition)
+
+#Wald検定（wt）
+dds_wt <- DESeq(dds)
+res_wt <- results(dds_wt)
+res_wt_naomit <- na.omit(res_wt) # NA を除外
+
+
+#解析結果を表示・保存する（下記はWald検定の結果を扱う場合の例。尤度比検定の結果を用いる場合は res_wt_naomit を res_lrt_naomit に変更する）
+#遺伝子名の付与（アノテーション）
+t2g <- read.table("../ref/Rat_target2gene.txt",header=T,stringsAsFactors=F)
+head(t2g)
+res_wt_naomit$ens_gene <- row.names(res_wt_naomit)
+res_wt_naomit_annot <- merge(as.data.frame(res_wt_naomit), unique(t2g[,2:3]), by="ens_gene")
+
+#発現変動のある転写産物を補正済みp値の低い順に並べる
+res_wt_naomit_annot_sort <- res_wt_naomit_annot[order(res_wt_naomit_annot$padj),]
+
+#発現変動の大きな遺伝子、上位20個を表示させる（補正済みp値の低い20遺伝子）
+head(res_wt_naomit_annot_sort, 20)
+
+#各カラムの説明は下記コマンドで表示させる
+mcols(res_wt_naomit)
+
+#データフレームの保存
+write.table(res_wt_naomit_annot_sort, "Wald-test.result.txt", sep="\t", quote=F, row.names=F)
+
+#作図（MA-plot）reference;http://array.cell-innovator.com/?p=1772
+#作図・表示させるコマンド
+plotMA(res_wt, ylim=c(-2, 2))
+#保存する
+png("MAplot.png") # EPS形式にしたい場合はpostscript("MAplot.eps")を使う
+plotMA(res_wt, ylim=c(-10, 10))
+dev.off()
+
+#Log fold change shrinkage for visualization and ranking
+resultsNames(dds_wt)
+resLFC <- lfcShrink(dds_wt, coef="condition_Type_1_Diabetes_vs_Healthy_Control", type="apeglm")
+resLFC
+#作図
+plotMA(resLFC, ylim=c(-2,2))
+
+
+
+#特定の遺伝子の発現量（count）を示すプロットを作図
+#発現変動の大きな遺伝子を表示させる
+head(res_wt_naomit_annot_sort)
+
+#FASN (ENSRNOG00000037563) という遺伝子の発現変動が大きかったので、この発現量をプロットする
+#発現量を図示する
+plotCounts(dds, gene="ENSRNOG00000037563", intgroup="condition")
+
+
+#保存する際はMA-plotと同様
+png("ENSRNOG00000037563.png")
+plotCounts(dds, gene="ENSRNOG00000037563", intgroup="condition")
+dev.off()
+
+#自前で作図するためにデータのみを抽出したい場合は returnData=T を加える
+d <- plotCounts(dds, gene="ENSRNOG00000037563", intgroup="condition", returnData=T)
+head(d)
+
+#minumum p value
+plotCounts(dds, gene=which.min(res_wt$padj), intgroup="condition")
+par(mar=c(5,5,5,5), cex=1.0, cex.main=1.4, cex.axis=1.4, cex.lab=1.4)
+topT <- as.data.frame(res_wt)
+
+#Adjusted P values (FDR Q values)
+with(topT, plot(log2FoldChange, -log10(padj), pch=20, main="Volcano plot", cex=1.0, xlab=bquote(~Log[2]~fold~change), ylab=bquote(~-log[10]~Q~value)))
+
+with(subset(topT, padj<0.05 & abs(log2FoldChange)>2), points(log2FoldChange, -log10(padj), pch=20, col="red", cex=0.5))
+
+#with(subset(topT, padj<0.05 & abs(log2FoldChange)>2), text(log2FoldChange, -log10(padj), labels=subset(rownames(topT), topT$padj<0.05 & abs(topT$log2FoldChange)>2), cex=0.8, pos=3))
+
+#Add lines for absolute FC>2 and P-value cut-off at FDR Q<0.05
+abline(v=0, col="black", lty=3, lwd=1.0)
+abline(v=-2, col="black", lty=4, lwd=2.0)
+abline(v=2, col="black", lty=4, lwd=2.0)
+abline(h=-log10(max(topT$pvalue[topT$padj<0.05], na.rm=TRUE)), col="black", lty=4, lwd=2.0)
+
+# refference 
+# http://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#exploring-and-exporting-results
+# res は　res_wt_naomit のこと
+
+# More information on results columns
+mcols(res_wt_naomit)$description
+
+#How many adjusted p-values were less than 0.1?
+sum(res_wt$padj < 0.1, na.rm=TRUE)
+
+# Data transformations and visualization
+# Count data transformations
+vsd <- vst(dds, blind=FALSE)
+rld <- rlog(dds, blind=FALSE) #Regularized log transformation 
+head(assay(vsd), 3)
+
+# Effects of transformations on the variance
+ntd <- normTransform(dds)
+class(ntd)
+
+library("vsn")
+library(hexbin)
+meanSdPlot(assay(ntd))
+meanSdPlot(assay(vsd))
+meanSdPlot(assay(rld))
+
+
+library("pheatmap")
+#heatmap oredered by P value (https://www.biostars.org/p/179911/)
+# We can order our results table by the smallest p value:
+res_wtOrdered <- res_wt_naomit[order(res_wt_naomit$pvalue),]
+summary(res_wtOrdered)
+
+topgenes <- head(rownames(res_wtOrdered),20)
+mat <- assay(rld)[topgenes,] #rld
+mat <- mat - rowMeans(mat)
+mat
+
+df <- as.data.frame(colData(dds)[,c("condition")])
+df
+# Change the name of column 
+colnames(df) <- 'condition'
+
+#To change the name of genes
+head(res_wt_naomit_annot_sort, 20) #20個目のp値を調べた
+res_wt_naomit_annot_sort_20 <- res_wt_naomit_annot_sort %>% filter(padj <= 4.345184e-36)　#20個だけ厳選 Pvalue 少し大きする
+res_wt_naomit_annot_sort_20 
+
+#Gene name だけ抽出
+gene_name20 <- res_wt_naomit_annot_sort_20$ext_gene
+gene_name20　#20個あるか確認
+
+rownames(mat) <- gene_name20 # mat rowname 変更　gene_name にする
+
+rownames(df) <- colnames(mat) #rownames(data)  # data行の名前colnames(data2) data2の列の名前
+pheatmap(mat, show_colnames = F, annotation_col=df)
+
+
+#Heatmap of the sample-to-sample distances
+sampleDists <- dist(t(assay(vsd)))
+
+library("RColorBrewer")
+sampleDistMatrix <- as.matrix(sampleDists)
+rownames(sampleDistMatrix) <- paste(vsd$condition, vsd$type, sep="-")
+colnames(sampleDistMatrix) <- NULL
+colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+pheatmap(sampleDistMatrix,
+         clustering_distance_rows=sampleDists,
+         clustering_distance_cols=sampleDists,
+         col=colors)
+
+# Principal component plot of the samples
+plotPCA(vsd, intgroup=c("condition")) #条件を増やすなら、,"~~~",というふうに加えていく 
+
+pcaData <- plotPCA(vsd, intgroup=c("condition"), returnData=TRUE)
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+ggplot(pcaData, aes(PC1, PC2, color=condition)) +
+  geom_point(size=3) +
+  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
+  coord_fixed()
+
+#rldでtransformした場合のPCA
+rld <- rlog(dds)
+plotPCA(rld, intgroup=c("condition"))
+
+
+
